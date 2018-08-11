@@ -25,7 +25,7 @@ char *axelF = "axelf:d=4,o=5,b=160:f#,8a.,8f#,16f#,8a#,8f#,8e,f#,8c.6,8f#,16f#,8
 char *XFiles = "Xfiles:d=4,o=5,b=125:e,b,a,b,d6,2b.,1p,e,b,a,b,e6,2b.,1p,g6,f#6,e6,d6,e6,2b.,1p,g6,f#6,e6,d6,f#6,2b.,1p,e,b,a,b,d6,2b.,1p,e,b,a,b,e6,2b.,1p,e6,2b";
 char *YMCA = "YMCA:d=4,o=5,b=160:8c#6,8a#,2p,8a#,8g#,8f#,8g#,8a#,c#6,8a#,c#6,8d#6,8a#,2p,8a#,8g#,8f#,8g#,8a#,c#6,8a#,c#6,8d#6,8b,2p,8b,8a#,8g#,8a#,8b,d#6,8f#6,d#6,f.6,d#.6,c#.6,b.,a#,g#";
 
-char *buzzerAxelF = "axelf:d=4,o=5,b=160:f#,8a.,8f#,16f#,8a#,8f#,8e";//,f#,8c.6,8f#,16f#,8d6,8c#6,8a,8f#,8c#6,8f#6,16f#,8e,16e,8c#,8g#,f#";
+char *buzzerAxelF = "axelf:d=4,o=5,b=160:f#,8a.,8f#";//,16f#,8a#,8f#,8e,f#,8c.6,8f#,16f#,8d6,8c#6,8a,8f#,8c#6,8f#6,16f#,8e,16e,8c#,8g#,f#";
 
 
 // LED setup
@@ -56,6 +56,9 @@ const int buzzer9 = 37;
 const int buzzer10 = 35;
 const int buzzer11 = 33;
 const int buzzer12 = 31;
+
+// take turns checking
+int turn = 0;
 
 typedef struct {
   int buzzerNumber;
@@ -93,6 +96,8 @@ int buzzedIn = -1;
 
 void setup() { 
 
+  Serial.begin(9600); 
+
   for(int i = 0; i < 12; i++){
     pinMode(buzzers[i].lightPin, OUTPUT);
     pinMode(buzzers[i].buzzerPin, INPUT);
@@ -107,6 +112,27 @@ void setup() {
   startup();
 
   gameState = ASK_QUESTION;
+  for(int i = 0; i < 12; i++){
+    if(!buzzers[i].earlyPress)
+      digitalWrite(buzzers[i].lightPin, HIGH);
+  }
+}
+
+void startup(){
+
+  for(int i = 0; i < 12; i++){
+    digitalWrite(buzzers[i].lightPin, HIGH);
+    delay(100);   
+  }
+  
+  play_rtttl(pacman);
+  toneAC();
+
+  for(int i = 0; i < 12; i++){
+    digitalWrite(buzzers[i].lightPin, LOW);
+    delay(100);   
+  }
+
 }
 
 void buttonPressed(Buzzer buzzer){
@@ -115,8 +141,7 @@ void buttonPressed(Buzzer buzzer){
     buzzer.earlyPress = true;  
     digitalWrite(buzzer.lightPin, LOW);
   }
-  
-  if(gameState == WAIT_FOR_ANSWER && buzzer.earlyPress == false){
+  else if(gameState == WAIT_FOR_ANSWER && buzzer.earlyPress == false){
     gameState = ANSWERING;
     play_rtttl(buzzerAxelF);
     toneAC();
@@ -131,18 +156,24 @@ void buttonPressed(Buzzer buzzer){
 void teacherPressed(){
 
   if(gameState == ASK_QUESTION){
+    Serial.print("teacher press:  ASK QUESTION\n");
     gameState = WAIT_FOR_ANSWER;
-    for(int i = 0; i < 12; i++)
-      digitalWrite(buzzers[i].lightPin, HIGH);
+    for(int i = 0; i < 12; i++){
+      if(!buzzers[i].earlyPress)
+        digitalWrite(buzzers[i].lightPin, HIGH);
+    }
     delay(500);
+    return;
   }
 
   else if(gameState == WAIT_FOR_ANSWER || gameState == ANSWERING){
+    Serial.print("teacher press:  WAIT FOR ANSWER OR ANSWERING\n");
     gameState = ASK_QUESTION;  
     for(int i = 0; i < 12; i++){
       digitalWrite(buzzers[i].lightPin, LOW);
       buzzers[i].earlyPress = false;
     }
+    delay(500);
   }
 
 }
@@ -152,25 +183,29 @@ void teacherPressed(){
 void loop() {
 
     if(digitalRead(buzzerTeacher) == HIGH){
-      teacherPressed();
+      teacherPressed();      
+      turn = (turn+1) % 12;
     }
 
     for(int i = 0; i < 12; i++){
-      if(digitalRead(buzzer1) == HIGH)
-        buttonPressed(buzzers[i]);
+
+      int buzzer = (i + turn) % 12;
+      
+      if(digitalRead(buzzers[buzzer].buzzerPin) == HIGH)
+        buttonPressed(buzzers[buzzer]);
     }
   
  
 }
-
+/*
 void buzzIn(const int buzzer){
   gameState = ANSWERING;
   buzzedIn = buzzer;
   digitalWrite(buzzedIn, HIGH);
   play_rtttl(buzzerAxelF);
   toneAC();
-
 }
+
 
 void teacherClear(){
   gameState = ASK_QUESTION;
@@ -183,7 +218,7 @@ void cycleLED(const int pin){
   delay(300);               // wait for a second
   digitalWrite(pin, LOW);    // turn the LED off by making the voltage LOW
 }
-
+*/
 void play_rtttl(char *p)
 {
   // Absolutely no error checking in here on arduino segway clone
@@ -332,20 +367,5 @@ void play_rtttl(char *p)
   }
 }
 
-void startup(){
 
-  for(int i = 0; i < 12; i++){
-    digitalWrite(buzzers[i].lightPin, HIGH);
-    delay(100);   
-  }
-  
-  //play_rtttl(pacman);
-  //toneAC();
-
-  for(int i = 0; i < 12; i++){
-    digitalWrite(buzzers[i].lightPin, LOW);
-    delay(100);   
-  }
-
-}
 
