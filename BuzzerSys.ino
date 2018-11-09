@@ -1,11 +1,14 @@
+// Buzzer setup
+#include "Buzzers.h"
+
 // Music setup
 #include "pitches.h"
 #include <toneAC.h>
-
 #define OCTAVE_OFFSET 0
 #define isdigit(n) (n >= '0' && n <= '9')
-#define ledpin 13
-#define blinkdelay 50
+
+Buzzers buzzers;
+Buzzer teacherBuzzer(A2);
 
 int notes[] = { 
   0,
@@ -28,67 +31,11 @@ char *YMCA = "YMCA:d=4,o=5,b=160:8c#6,8a#,2p,8a#,8g#,8f#,8g#,8a#,c#6,8a#,c#6,8d#
 char *buzzerAxelF = "axelf:d=4,o=5,b=160:f#,8a.,8f#";//,16f#,8a#,8f#,8e,f#,8c.6,8f#,16f#,8d6,8c#6,8a,8f#,8c#6,8f#6,16f#,8e,16e,8c#,8g#,f#";
 
 
-// LED setup
-const int ltPink = A3;
-const int ltOrange = A4;
-const int ltYellow = A5;
-const int ltGreen = A6;
-const int ltBlue = A8;
-const int ltPurple = A9;
-const int dkPink = A10;
-const int dkOrange = A11;
-const int dkYellow = A12;
-const int dkGreen = A13;
-const int dkBlue = -1;//A14;
-const int dkPurple = A15;
-
-// Buzzer setup
-const int buzzerTeacher = A2;
-const int buzzer1 = 53;
-const int buzzer2 = 51;
-const int buzzer3 = 49;
-const int buzzer4 = 47;
-const int buzzer5 = 45;
-const int buzzer6 = 43;
-const int buzzer7 = 41;
-const int buzzer8 = 39;
-const int buzzer9 = 37;
-const int buzzer10 = 35;
-const int buzzer11 = 33;
-const int buzzer12 = 31;
-
-// take turns checking
-int turn = 0;
-
-typedef struct {
-  int buzzerNumber;
-  int buzzerPin;
-  char* lightColor;
-  int lightPin;  
-  bool earlyPress;
-} Buzzer;
-
-Buzzer buzzers[12] = {{1,buzzer1, "ltPink", ltPink, false},
-                      {2,buzzer2, "ltOrange", ltOrange, false},
-                      {3,buzzer3, "ltYellow", ltYellow, false},
-                      {4,buzzer4, "ltGreen", ltGreen, false},
-                      {5,buzzer5, "ltBlue", ltBlue, false},
-
-                      // These two are wired backwards
-                      {6,buzzer6, "dkPink", dkPink, false},
-                      {7,buzzer7, "ltPurple", ltPurple, false},
-                      
-                      {8,buzzer8, "dkOrange", dkOrange, false},
-                      {9,buzzer9, "dkYellow", dkYellow, false},
-                      {10,buzzer10, "dkGreen", dkGreen, false},
-                      {11,buzzer11, "dkBlue", dkBlue, false},
-                      {12,buzzer12, "dkPurple", dkPurple, false}};
-
 // game mechanics
 enum GameState {
   ASK_QUESTION,
   WAIT_FOR_ANSWER,
-  ANSWERING  
+  STUDENT_BUZZES  
 };
 
 GameState gameState;
@@ -98,127 +45,92 @@ void setup() {
 
   Serial.begin(9600); 
 
-  for(int i = 0; i < 12; i++){
-    pinMode(buzzers[i].lightPin, OUTPUT);
-    pinMode(buzzers[i].buzzerPin, INPUT);
-  }
+  teacherBuzzer.init();
+  buzzers.initAll();
 
-  // Teacher Buzzer
-  pinMode(buzzerTeacher, INPUT);
-
-  //  For sounds?
-  pinMode(ledpin, OUTPUT);
-
-  startup();
+  //startup();
 
   gameState = ASK_QUESTION;
-  for(int i = 0; i < 12; i++){
-    if(!buzzers[i].earlyPress)
-      digitalWrite(buzzers[i].lightPin, HIGH);
-  }
+  buzzers.allOn();
+
 }
+
+// the loop routine runs over and over again forever:
+void loop() {
+
+
+  if(gameState == ASK_QUESTION){
+    Serial.println("ASK_QUESTION");
+    
+    // Lock out early birds
+    for(int i = 0; i < buzzers.getNumBuzzers(); i++){
+      if(buzzers.poll(i) == 1){
+        buzzers.lock(i);
+        buzzers.off(i);
+      }
+    }
+    
+    // Question over - move to Wait for answer
+    if(teacherBuzzer.poll() == 1){
+      teacherBuzzer.timelock();
+      gameState = WAIT_FOR_ANSWER;
+      buzzers.allOff();
+    }
+  }
+    
+  else if(gameState == WAIT_FOR_ANSWER){
+    Serial.println("WAIT_FOR_ANSWER");
+    
+    // Student buzzes in
+    for(int i = 0; i < buzzers.getNumBuzzers(); i++){
+      if(buzzers.poll(i) == 1){
+        buzzers.on(i);        
+        gameState = STUDENT_BUZZES;
+      }
+    }
+  
+    // No one answered, teacher resets
+    if(teacherBuzzer.poll() == 1){     
+      teacherBuzzer.timelock();
+      gameState = ASK_QUESTION;
+      buzzers.unlockAll();
+      buzzers.allOn();            
+    }
+  }
+    
+  else{ // STUDENT_BUZZES:
+    Serial.println("STUDENT_BUZZES");
+    
+    // Question answered, teacher resets
+    if(teacherBuzzer.poll() == 1){     
+      teacherBuzzer.timelock();
+      gameState = ASK_QUESTION;
+      buzzers.unlockAll();
+      buzzers.allOn();      
+    }
+  
+  }    
+ 
+}
+
 
 void startup(){
 
-  for(int i = 0; i < 12; i++){
-    digitalWrite(buzzers[i].lightPin, HIGH);
+  for(int i = 0; i < buzzers.getNumBuzzers(); i++){
+    buzzers.on(i);
     delay(100);   
   }
   
   play_rtttl(pacman);
   toneAC();
 
-  for(int i = 0; i < 12; i++){
-    digitalWrite(buzzers[i].lightPin, LOW);
+  for(int i = 0; i < buzzers.getNumBuzzers(); i++){
+    buzzers.off(i);
     delay(100);   
   }
 
 }
 
-void buttonPressed(Buzzer buzzer){
-
-  if(gameState == ASK_QUESTION){
-    buzzer.earlyPress = true;  
-    digitalWrite(buzzer.lightPin, LOW);
-  }
-  else if(gameState == WAIT_FOR_ANSWER && buzzer.earlyPress == false){
-    gameState = ANSWERING;
-    play_rtttl(buzzerAxelF);
-    toneAC();
-    for(int i = 0; i < 12; i++){
-      if(buzzers[i].buzzerNumber != buzzer.buzzerNumber)  
-        digitalWrite(buzzers[i].lightPin, LOW);
-    }
-  }
-}
-
-
-void teacherPressed(){
-
-  if(gameState == ASK_QUESTION){
-    Serial.print("teacher press:  ASK QUESTION\n");
-    gameState = WAIT_FOR_ANSWER;
-    for(int i = 0; i < 12; i++){
-      if(!buzzers[i].earlyPress)
-        digitalWrite(buzzers[i].lightPin, HIGH);
-    }
-    delay(500);
-    return;
-  }
-
-  else if(gameState == WAIT_FOR_ANSWER || gameState == ANSWERING){
-    Serial.print("teacher press:  WAIT FOR ANSWER OR ANSWERING\n");
-    gameState = ASK_QUESTION;  
-    for(int i = 0; i < 12; i++){
-      digitalWrite(buzzers[i].lightPin, LOW);
-      buzzers[i].earlyPress = false;
-    }
-    delay(500);
-  }
-
-}
-
-
-// the loop routine runs over and over again forever:
-void loop() {
-
-    if(digitalRead(buzzerTeacher) == HIGH){
-      teacherPressed();      
-      turn = (turn+1) % 12;
-    }
-
-    for(int i = 0; i < 12; i++){
-
-      int buzzer = (i + turn) % 12;
-      
-      if(digitalRead(buzzers[buzzer].buzzerPin) == HIGH)
-        buttonPressed(buzzers[buzzer]);
-    }
-  
- 
-}
-/*
-void buzzIn(const int buzzer){
-  gameState = ANSWERING;
-  buzzedIn = buzzer;
-  digitalWrite(buzzedIn, HIGH);
-  play_rtttl(buzzerAxelF);
-  toneAC();
-}
-
-
-void teacherClear(){
-  gameState = ASK_QUESTION;
-  digitalWrite(buzzedIn, LOW);
-  buzzedIn = -1;
-}
-
-void cycleLED(const int pin){
-  digitalWrite(pin, HIGH);   // turn the LED on (HIGH is the voltage level)
-  delay(300);               // wait for a second
-  digitalWrite(pin, LOW);    // turn the LED off by making the voltage LOW
-}
-*/
 void play_rtttl(char *p)
 {
   // Absolutely no error checking in here on arduino segway clone
