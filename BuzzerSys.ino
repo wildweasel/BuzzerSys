@@ -28,7 +28,7 @@ char *axelF = "axelf:d=4,o=5,b=160:f#,8a.,8f#,16f#,8a#,8f#,8e,f#,8c.6,8f#,16f#,8
 char *XFiles = "Xfiles:d=4,o=5,b=125:e,b,a,b,d6,2b.,1p,e,b,a,b,e6,2b.,1p,g6,f#6,e6,d6,e6,2b.,1p,g6,f#6,e6,d6,f#6,2b.,1p,e,b,a,b,d6,2b.,1p,e,b,a,b,e6,2b.,1p,e6,2b";
 char *YMCA = "YMCA:d=4,o=5,b=160:8c#6,8a#,2p,8a#,8g#,8f#,8g#,8a#,c#6,8a#,c#6,8d#6,8a#,2p,8a#,8g#,8f#,8g#,8a#,c#6,8a#,c#6,8d#6,8b,2p,8b,8a#,8g#,8a#,8b,d#6,8f#6,d#6,f.6,d#.6,c#.6,b.,a#,g#";
 
-char *buzzerAxelF = "axelf:d=4,o=5,b=160:f#,8a.,8f#";//,16f#,8a#,8f#,8e,f#,8c.6,8f#,16f#,8d6,8c#6,8a,8f#,8c#6,8f#6,16f#,8e,16e,8c#,8g#,f#";
+char *buzzerAxelF = "axelf:d=4,o=5,b=160:f#,8a.";//,8f#,16f#,8a#,8f#,8e,f#,8c.6,8f#,16f#,8d6,8c#6,8a,8f#,8c#6,8f#6,16f#,8e,16e,8c#,8g#,f#";
 
 
 // game mechanics
@@ -48,7 +48,7 @@ void setup() {
   teacherBuzzer.init();
   buzzers.initAll();
 
-  //startup();
+  startup();
 
   gameState = ASK_QUESTION;
   buzzers.allOn();
@@ -84,6 +84,8 @@ void loop() {
     // Student buzzes in
     for(int i = 0; i < buzzers.getNumBuzzers(); i++){
       if(buzzers.poll(i) == 1){
+        play_rtttl(buzzerAxelF);
+        toneAC();
         buzzers.on(i);        
         gameState = STUDENT_BUZZES;
       }
@@ -278,6 +280,3 @@ void play_rtttl(char *p)
     }
   }
 }
-
-
-
